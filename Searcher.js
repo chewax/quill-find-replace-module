@@ -1,120 +1,193 @@
-class Searcher {
-  constructor(quill) {
-    this.quill = quill;
-    this.container = document.getElementById("search-container");
 
-    document
-      .getElementById("search")
-      .addEventListener("click", this.search.bind(this));
-    document
-      .getElementById("search-input")
-      .addEventListener("keyup", this.keyPressedHandler.bind(this));
-    document
-      .getElementById("replace")
-      .addEventListener("click", this.replace.bind(this));
-    document
-      .getElementById("replace-all")
-      .addEventListener("click", this.replaceAll.bind(this));
+class Searcher {
+  constructor(quill, options) {
+    this.quill = quill;
+
+    this.options = {
+      searchInput: options.searchInput || "search-input",
+      replaceInput: options.replaceInput || "replace-input",
+      searchButton: options.searchButton || "search-button",
+      replaceButton: options.replaceButton || "replace-button",
+      replaceAllButton: options.replaceAllButton || "replace-all-button",
+      onNext: typeof options.onNext == 'function' ? options.onNExt : () => { }
+    }
+
+    this.searchInput = document.querySelector(`#${this.options.searchInput}`);
+    this.replaceInput = document.querySelector(`#${this.options.replaceInput}`);
+    this.searchButton = document.querySelector(`#${this.options.searchButton}`);
+    this.replaceButton = document.querySelector(`#${this.options.replaceButton}`);
+    this.replaceAllButton = document.querySelector(`#${this.options.replaceAllButton}`);
+
+    this.searchButton.addEventListener("click", this.search.bind(this, false));
+    this.searchInput.addEventListener("keyup", this.keyPressedHandler.bind(this));
+    if (this.replaceButton) this.replaceButton.addEventListener("click", this.replace.bind(this));
+    if (this.replaceAllButton) this.replaceAllButton.addEventListener("click", this.replaceAll.bind(this));
+
+    this.searchStr = this.searchInput.value;
+    this.iterator = this.makeSearchIterator("");
   }
 
-  search() {
-    //  remove any previous search
-    Searcher.removeStyle();
-    Searcher.SearchedString = document.getElementById("search-input").value;
-    if (Searcher.SearchedString) {
-      let totalText = quill.getText();
-      let re = new RegExp(Searcher.SearchedString, "gi");
-      let match = re.test(totalText);
-      if (match) {
-        let indices = (Searcher.occurrencesIndices = totalText.getIndicesOf(
-          Searcher.SearchedString
-        ));
-        let length = (Searcher.SearchedStringLength =
-          Searcher.SearchedString.length);
+  highlight(index, length, on = true) {
+    if (index < 0 || length <= 0) return;
 
-        indices.forEach(index =>
-          quill.formatText(index, length, "SearchedString", true)
-        );
-      } else {
-        Searcher.occurrencesIndices = null;
-        Searcher.currentIndex = 0;
-      }
-    } else {
-      Searcher.removeStyle();
+    if (on) {
+      this.removeStyle(['SearchMatch'], index, length);
+      this.applyStyle(['SearchHighlight'], index, length);
+    }
+    else {
+      this.removeStyle(['SearchHighlight'], index, length);
+      this.applyStyle(['SearchMatch'], index, length);
     }
   }
 
+  search(forceNew) {
+    this.searchStr = this.searchInput.value;
+
+    if (this.searchStr) {
+
+      if (this.iterator.currentSearch() == this.searchStr && this.iterator.hasNext() && !forceNew) {
+        let patternLength = this.iterator.currentSearch().length;
+
+        this.highlight(this.iterator.current(), patternLength, false);
+        this.iterator.next();
+        this.highlight(this.iterator.current(), patternLength, true);
+
+        return;
+      }
+
+      this.removeStyle(['SearchMatch', 'SearchHighlight']);
+      this.iterator = this.makeSearchIterator(this.searchStr);
+      this.iterator.next();
+
+      let patternLength = this.iterator.currentSearch().length;
+      this.highlight(this.iterator.current(), patternLength, true);
+
+    }
+
+    else {
+      this.removeStyle(['SearchMatch', 'SearchHighlight']);
+      this.makeSearchIterator("");
+    }
+
+  }
+
+  makeSearchIterator(pattern) {
+
+    let totalText = this.quill.getText();
+    let re = new RegExp(pattern, "gi");
+    let match = re.test(totalText);
+    let indices = match ? this.getIndicesOf(pattern, totalText) : [];
+    indices.forEach(index => this.quill.formatText(index, pattern.length, "SearchMatch", true));
+
+    let currentIndex = 0;
+    const rangeIterator = {
+
+      next: () => {
+        if (indices.length == 0) return -1;
+        let next = currentIndex < indices.length ? indices[currentIndex++] : -1;
+        this.options.onNext(next);
+        return next;
+      },
+
+      prev: () => {
+        if (indices.length == 0) return -1;
+        let prev = currentIndex > 1 ? indices[currentIndex - 2] : -1;
+        return prev;
+      },
+
+      current: () => {
+        let curr = currentIndex > 0 ? indices[currentIndex - 1] : -1;
+        return curr;
+      },
+
+      hasNext: () => {
+        return currentIndex < indices.length;
+      },
+
+      match: () => {
+        return indices.length;
+      },
+
+      currentSearch: () => {
+        return pattern;
+      },
+
+      updateIndices: delta => {
+        indices = indices.map(i => i + delta);
+      },
+
+      done: () => {
+        return currentIndex >= indices.length || !indices.length;
+      }
+
+    };
+
+    return rangeIterator;
+  }
+
+
   replace() {
-    if (!Searcher.SearchedString) return;
+    if (this.iterator.done()) this.search(/*forceNew=*/true);
+    if (!this.iterator.match()) return;
 
-    // if no occurrences, then search first.
-    if (!Searcher.occurrencesIndices) this.search();
-    if (!Searcher.occurrencesIndices) return;
+    let patternLength = this.iterator.currentSearch().length;
+    let replaceLength = this.replaceInput.value.length;
 
-    let indices = Searcher.occurrencesIndices;
+    this.quill.deleteText(this.iterator.current(), patternLength);
+    this.quill.insertText(this.iterator.current(), this.replaceInput.value);
 
-    let oldString = document.getElementById("search-input").value;
-    let newString = document.getElementById("replace-input").value;
+    this.highlight(this.iterator.current(), replaceLength, true);
+    this.highlight(this.iterator.prev(), replaceLength, false);
 
-    quill.deleteText(indices[Searcher.currentIndex], oldString.length);
-    quill.insertText(indices[Searcher.currentIndex], newString);
-    quill.formatText(
-      indices[Searcher.currentIndex],
-      newString.length,
-      "SearchedString",
-      false
-    );
-    // update the occurrencesIndices.
-    this.search();
+    //Update indices due to letter shift (replace shifts the indices)
+    this.iterator.updateIndices(replaceLength - patternLength);
+    this.iterator.next();
   }
 
   replaceAll() {
-    if (!Searcher.SearchedString) return;
-    let oldStringLen = document.getElementById("search-input").value.length;
-    let newString = document.getElementById("replace-input").value;
-
-    // if no occurrences, then search first.
-    if (!Searcher.occurrencesIndices) this.search();
-    if (!Searcher.occurrencesIndices) return;
-
-    if (Searcher.occurrencesIndices) {
-      while (Searcher.occurrencesIndices) {
-        quill.deleteText(Searcher.occurrencesIndices[0], oldStringLen);
-        quill.insertText(Searcher.occurrencesIndices[0], newString);
-
-        // update the occurrencesIndices.
-        this.search();
-      }
+    this.replace();
+    while (!this.iterator.done()) {
+      this.replace();
     }
-    Searcher.removeStyle();
+    this.replace();
   }
 
   keyPressedHandler(e) {
     if (e.key === "Enter") {
       this.search();
     }
-      
-  static removeStyle() {
-       quill.formatText(0, quill.getText().length, 'SearchedString', false);
   }
+
+  getIndicesOf(searchStr, str, caseSensitive = false) {
+    let searchStrLen = searchStr.length;
+    if (searchStrLen == 0) {
+      return [];
+    }
+
+    let startIndex = 0, index, indices = [];
+
+    if (!caseSensitive) {
+      str = str.toLowerCase();
+      searchStr = searchStr.toLowerCase();
+    }
+
+    while ((index = str.indexOf(searchStr, startIndex)) > -1) {
+      indices.push(index);
+      startIndex = index + searchStrLen;
+    }
+
+    return indices;
+  }
+
+  removeStyle(blots, from = 0, len = this.quill.getText().length) {
+    blots.forEach(b => this.quill.formatText(from, len, b, false));
+  }
+
+  applyStyle(blots, from = 0, len = this.quill.getText().length) {
+    blots.forEach(b => this.quill.formatText(from, len, b, true));
+  }
+
 }
 
-occurrencesIndices = [];
-currentIndex = 0;
-SearchedStringLength = 0;
-SearchedString = "";
-
-// function for utility
-String.prototype.getIndicesOf = function(searchStr) {
-  let searchStrLen = searchStr.length;
-  let startIndex = 0,
-    index,
-    indices = [];
-  while ((index = this.toLowerCase().indexOf(searchStr.toLowerCase(), startIndex)) > -1) {
-    indices.push(index);
-    startIndex = index + searchStrLen;
-  }
-  return indices;
-};
 
 export default Searcher;
