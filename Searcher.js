@@ -9,7 +9,7 @@ class Searcher {
       searchButton: options.searchButton || "search-button",
       replaceButton: options.replaceButton || "replace-button",
       replaceAllButton: options.replaceAllButton || "replace-all-button",
-      onNext: typeof options.onNext == 'function' ? options.onNExt : () => { }
+      onNext: typeof options.onNext == 'function' ? options.onNext : () => { }
     }
 
     this.searchInput = document.querySelector(`#${this.options.searchInput}`);
