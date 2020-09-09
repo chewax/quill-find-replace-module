@@ -210,10 +210,6 @@ export default {
       content: "<h2>I am Example amamelis ambulancia amar azul</h2>",
       editorOption: {
         modules: {
-          counter: {
-            container: "word_count_placeholder",
-            unit: "word"
-          },
           searcher: {
           	
           }
