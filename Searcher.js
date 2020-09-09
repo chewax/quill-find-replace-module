@@ -10,7 +10,9 @@ class Searcher {
 			searchButton: options.searchButton || "search-button",
 			replaceButton: options.replaceButton || "replace-button",
 			replaceAllButton: options.replaceAllButton || "replace-all-button",
-			onNext: typeof options.onNext == 'function' ? options.onNext() : () => {}
+			prevButton: options.prevButton || "prev-match-button",
+			nextButton: options.nextButton || "next-match-button",
+			clearButton: options.clearButton || "clear-search-button",
 		}
 
 		this.searchInput = document.querySelector(`#${this.options.searchInput}`);
@@ -18,11 +20,17 @@ class Searcher {
 		this.searchButton = document.querySelector(`#${this.options.searchButton}`);
 		this.replaceButton = document.querySelector(`#${this.options.replaceButton}`);
 		this.replaceAllButton = document.querySelector(`#${this.options.replaceAllButton}`);
+		this.prevButton = document.querySelector(`#${this.options.prevButton}`);
+		this.nextButton = document.querySelector(`#${this.options.nextButton}`);
+		this.clearButton = document.querySelector(`#${this.options.clearButton}`);
 
 		this.searchButton.addEventListener("click", this.search.bind(this, false));
 		this.searchInput.addEventListener("keyup", this.keyPressedHandler.bind(this));
 		if (this.replaceButton) this.replaceButton.addEventListener("click", this.replace.bind(this));
 		if (this.replaceAllButton) this.replaceAllButton.addEventListener("click", this.replaceAll.bind(this));
+		if (this.prevButton) this.prevButton.addEventListener("click", this.prev.bind(this));
+		if (this.nextButton) this.nextButton.addEventListener("click", this.next.bind(this));
+		if (this.clearButton) this.clearButton.addEventListener("click", this.newSearch.bind(this, ""));
 
 		this.newSearch("");
 	}
@@ -35,17 +43,27 @@ class Searcher {
 	}
 
 	next() {
-		this.highlight(this.iterator.current(), false);
-		this.highlight(this.iterator.next(), true);
+		this.search(false, this.iterator.next.bind(this.iterator));
 	}
 
-	search(forceNew) {
+	prev() {
+		this.search(false, this.iterator.prev.bind(this.iterator));
+	}
+
+	search(forceNew, shift) {
+		//by default if no iterator shift function is passed, then iterator.next is picked as normal operation
+		if (shift == null || typeof shift != 'function') shift = this.iterator.next.bind(this.iterator);
 
 		let inputTerm = this.searchInput.value;
 
 		if (inputTerm) {
 			//Do stuff with next term
-			if (this.iterator.term == inputTerm && !forceNew) return this.next();
+			if (this.iterator.term == inputTerm && !forceNew) {
+				this.highlight(this.iterator.current(), false);
+				this.highlight(shift(), true);
+				return;
+			};
+
 			this.newSearch(inputTerm);
 
 		} else {
@@ -53,7 +71,6 @@ class Searcher {
 			this.removeStyle(['SearchMatch', 'SearchHighlight']);
 			this.newSearch("");
 		}
-
 	}
 
 	replace() {
@@ -68,7 +85,7 @@ class Searcher {
 		this.quill.insertText(this.iterator.current().index, this.replaceInput.value);
 
 		//Update indices due to letter shift (replace shifts the indices)
-		this.iterator.updateIndices(replaceLength - termLength);
+		this.iterator.updateIndicesFrom(this.iterator.head, replaceLength - termLength);
 
 		this.highlight(this.iterator.getElementAtPosition(this.iterator.head), false);
 		this.iterator.remove(this.iterator.head); //splice from head, count=1
