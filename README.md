@@ -41,7 +41,7 @@ To get a local copy up and running follow these simple steps.
 
 ### Installation
 
-1. Clone the Ginseng into repo  
+1. Clone the repo into your libs
 
 ```sh
 git clone https://github.com/chewax/quill-find-replace-module.git
