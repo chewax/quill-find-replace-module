@@ -71,7 +71,7 @@ This two classes should be created/modified accordingly to give appropiate styli
 
 This classes will give a behaviour like this.
 
-![SearchModule](media/sshot.1.png)
+![](media/sshot.1.png)
 
 
 ## Usage
