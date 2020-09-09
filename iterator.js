@@ -29,10 +29,10 @@ class Iterator {
 		let match = re.exec(text);
 
 		while (match) {
+
 			result.push({
 				term: term,
-				index: match.index,
-				state: 'inline'
+				index: match.index
 			});
 
 			match = re.exec(text);
@@ -78,11 +78,10 @@ class Iterator {
 		return this.indices.length;
 	}
 
-	updateIndices(delta) {
-		this.indices = this.indices.map(i => {
-			i.index = i.index + delta;
-			return i;
-		});
+	updateIndicesFrom(from, delta) {
+		for (let idx = from; idx < this.indices.length; idx++) {
+			this.indices[idx].index += delta;
+		}
 	}
 }
 
