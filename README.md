@@ -71,8 +71,7 @@ This two classes should be created/modified accordingly to give appropiate styli
 
 This classes will give a behaviour like this.
 
-![](media/sshot.1.png)
-
+![Searcher](media/sshot1.png)
 
 ## Usage
 
